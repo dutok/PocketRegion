@@ -1,0 +1,5 @@
+name: PocketRegion
+main: PocketRegion\PocketRegion
+author: Dutok
+api: [1.1.0]
+version: 0.1
