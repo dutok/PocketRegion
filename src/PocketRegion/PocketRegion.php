@@ -1,9 +1,4 @@
 <?php
-/**
- * User: Michael Leahy
- * Date: 7/22/14
- * Time: 5:25 PM
- */
 
 namespace PocketRegion;
 
