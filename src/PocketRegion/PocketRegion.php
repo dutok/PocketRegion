@@ -20,7 +20,17 @@ class PocketRegion extends PluginBase{
 
     public $plugin;
 
+    private $database;
+
     public function onEnable(){
+        @mkdir($this->getDataFolder());
+        if(!file_exists($this->getDataFolder() . "regions.db")){
+            $this->database = new \SQLite3($this->getDataFolder() . "regions.db", SQLITE3_OPEN_READWRITE | SQLITE3_OPEN_CREATE);
+            $resource = $this->getResource("sqlite3.sql");
+            $this->database->exec(stream_get_contents($resource));
+        }else{
+            $this->database = new \SQLite3($this->getDataFolder() . "regions.db", SQLITE3_OPEN_READWRITE);
+        }
         $this->getLogger()->info(TextFormat::GREEN . "PocketRegion has been enabled!");
     }
 
@@ -30,14 +40,40 @@ class PocketRegion extends PluginBase{
 
     public function onCommand(CommandSender $sender, Command $command, $label, array $args){
         switch($command->getName()){
-            case "pos1":
+            case "define":
                 if ($sender instanceof Player) {
-                    $level = trim(strtolower($sender->getLevel()->getName()));
-                    $x = (int) $sender->x;
-                    $y = (int) $sender->y;
-                    $z = (int) $sender->z;
+                    if(!isset($args[1])){
+                        return false;
+                    }
+                    $distance = (int) array_shift($args);
+                    $regionName = array_shift($args);
+                    $flags = "";
 
-                    $sender->sendMessage($level . " and " . $x . " and " . $y . " and " . $z);
+                    $current = $sender->getPosition();
+                    $world = $current->getLevel()->getName();
+                    $firstx = (int) $current->getX();
+                    $firsty = (int) $current->getY();
+                    $firstz = (int) $current->getZ();
+
+                    $end = $current->add($sender->getDirectionVector()->multiply($distance));
+                    $secondx = $end->getX();
+                    $secondy = $end->getY();
+                    $secondz = $end->getZ();
+
+                    $prepare = $this->database->prepare("INSERT INTO regions (name, flags, world, firstx, firsty, firstz, secondx, secondy, secondz) VALUES (:name, :flags, :world, :firstx, :firsty, :firstz, :secondx, :secondy, :secondz)");
+                    $prepare->bindValue(":name", $regionName, SQLITE3_TEXT);
+                    $prepare->bindValue(":flags", $flags, SQLITE3_TEXT);
+                    $prepare->bindValue(":world", $world, SQLITE3_TEXT);
+                    $prepare->bindValue(":firstx", $firstx, SQLITE3_INTEGER);
+                    $prepare->bindValue(":firsty", $firsty, SQLITE3_INTEGER);
+                    $prepare->bindValue(":firstz", $firstz, SQLITE3_INTEGER);
+                    $prepare->bindValue(":secondx", $secondx, SQLITE3_INTEGER);
+                    $prepare->bindValue(":secondy", $secondy, SQLITE3_INTEGER);
+                    $prepare->bindValue(":secondz", $secondz, SQLITE3_INTEGER);
+                    $prepare->execute();
+
+                    $sender->sendMessage("Region '".$regionName."' defined.");
+
                     return true;
                 }
                 else {

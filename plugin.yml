@@ -4,6 +4,7 @@ author: Dutok
 api: [1.1.0]
 version: 0.1
 commands:
-  pos1:
-    description: Defines the first position.
-    permissions: pocketregion.pos
+  define:
+    description: Defines the region.
+    permissions: pocketregion.create
+    usage: /define <distance> <name>
