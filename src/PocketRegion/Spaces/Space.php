@@ -1,85 +1,148 @@
 <?php
 
-namespace pemapmodder\utils\spaces;
+namespace Space;
 
+use pocketmine\block\Air;
 use pocketmine\block\Block;
 use pocketmine\level\Position;
 use pocketmine\math\Vector3;
+use pocketmine\network\protocol\UpdateBlockPacket;
+use pocketmine\Player;
 
 abstract class Space{
+    /** @var Block[] */
+    protected $undoMap = [];
     /**
-     * Checks whether a position is inside the space.
-     *
-     * @param Position $pos the position to check
-     * @return bool <code>true</code> if inclusively inside, <code>false</code> otherwise.
+     * @return \pocketmine\level\Position[]
      */
-    public abstract function isInside(Position $pos);
-    public abstract function getBlockMap($get = false);
+    public abstract function getPosList();
     /**
-     * Set all blocks in this Space into a specified block.
-     *
-     * @param Block $block replace all blocks in this Space to this.
-     * @return int count of the number of blocks changed.
+     * @return Block[]
      */
-    public abstract function setBlocks(Block $block);
+    public abstract function getBlockList();
     /**
-     * Clear all blocks.<br>Subsitution of <code>Space->setBlocks(new AirBlock());</code>
-     * @return int count of the number of blocks changed.
+     * @param Block $block
+     * @param Player|bool $test
+     * @return int
      */
-    public function clearBlocks(){
-        return $this->setBlocks(Block::get(0));
-    }
-    /**
-     * Replace all blocks of a type to another type.
-     *
-     * @param Block $original block type to be replaced.
-     * @param Block $new block type to be replaced with.
-     * @param bool $detectMeta if identical to <code>false</code>, replace all blocks with the ID of $original. Default <code>true</code>.
-     * @return int count of the number of blocks changed.
-     */
-    public abstract function replaceBlocks(Block $original, Block $new, $detectMeta = true);
-    /**
-     * Fill all air blocks (and optionally liquid blocks) with a specified block.
-     *
-     * @param Block $new block type to fill with.
-     * @param bool $liquid if identical to <codee>true</code>, fill water and lava too. Default <code>false</code>.
-     * @return int count of the number of blocks changed.
-     */
-    public function fillBlocks(Block $new, $liquid = false){
-        $arr = array(0);
-        if($liquid)
-            $arr = array(0, 8, 9, 10, 11);
+    public function setBlocks(Block $block, $test = false){
+        $block = clone $block;
         $cnt = 0;
-        foreach($arr as $id)
-            $cnt += (int) $this->replaceBlocks(Block::get($id), $new, false);
+        foreach($this->getBlockList() as $b){
+            if($b->getID() !== $block->getID() or $b->getDamage() !== $block->getDamage()){
+                if($test instanceof Player){
+                    $pk = new UpdateBlockPacket;
+                    $pk->block = $block->getID();
+                    $pk->meta = $block->getDamage();
+                    $pk->x = $b->x;
+                    $pk->y = $b->y;
+                    $pk->z = $b->z;
+                    $test->dataPacket($pk);
+                }
+                else{
+                    $b->getLevel()->setBlock($b, $block, true, false); // w** shoghicp
+                }
+                $cnt++;
+            }
+        }
         return $cnt;
     }
     /**
-     * Checks whether two Vector3 objects are identical.
-     *
-     * @param Vector3 $arg0
-     * @param Vector3 $arg1
-     * @param bool $strict Default <code>false</code>.
-     * @param bool $ignoreCoords Default <code>false</code>.
-     * @param bool $ignoreLevel Default <code>false</code>.
-     * @return bool
+     * @param Player|bool $test
      */
-    public function isIdentical(Vector3 $a, Vector3 $b, $strict = false, $ignoreCoords = false, $ignoreLevel = false){
-        $result = true;
-        if($ignoreCoords === false){
-            $result = ($a->x === $b->x) and ($a->y === $a->y) and ($a->z === $a->z);
-        }
-        if(($a instanceof Position) and ($b instanceof Position)){
-            if($ignoreLevel === false){
-                $result = $result and ($a->level->getName() === $b->level->getName());
+    public function clear($test = false){
+        $this->setBlocks(new Air, $test);
+    }
+    /**
+     * Note: This method doesn't support /test since it is random.
+     * @param Block $block
+     * @param int $chance chance in percentage to replace.
+     * @return int the number of bocks replaced
+     */
+    public function randomPlaces(Block $block, $chance){
+        $cnt = 0;
+        foreach($this->getPosList() as $pos){
+            if(rand(1, 100) <= $chance){
+                $pos->getLevel()->setBlock($pos, $block, true, false);
+                $cnt++;
             }
-            if(($a instanceof Block) and ($b instanceof Block)){
-                $result = $result and ($a->getID() === $b->getID());
-                if($strict === true){
-                    $result = $result and ($a->getMetadata() === $b->getMetadata());
+        }
+        return $cnt;
+    }
+    /**
+     * @param Block $orig
+     * @param Block $new
+     * @param bool $checkMeta
+     * @param Player|bool $test
+     * @return int
+     */
+    public function replaceBlocks(Block $orig, Block $new, $checkMeta = true, $test = false){
+        $orig = clone $orig;
+        $new = clone $new;
+        $cnt = 0;
+        if($test instanceof Player){
+            $this->undoMap = []; // reset the undo map
+        }
+        foreach($this->getBlockList() as $b){
+            if($b->getID() === $orig->getID() and ($checkMeta === false or $b->getDamage() === $orig->getDamage())){
+                if($test instanceof Player){
+                    $pk = new UpdateBlockPacket;
+                    $pk->block = $new->getID();
+                    $pk->meta = $new->getDamage();
+                    $pk->x = $b->x;
+                    $pk->y = $b->y;
+                    $pk->z = $b->z;
+                    $test->dataPacket($pk);
+                    $this->undoMap[] = clone $b;
+                }
+                else{
+                    $b->getLevel()->setBlock($b, $new, true, false); // w** shoghicp
+                }
+                $cnt++;
+            }
+        }
+        return $cnt;
+    }
+    /**
+     * @param Block $from
+     * @param Block $to
+     * @param int $chance
+     * @param bool $checkMeta
+     */
+    public function randomReplaces(Block $from, Block $to, $chance, $checkMeta = true){
+        $cnt = 0;
+        foreach($this->getPosList() as $pos){
+            if(mt_rand(1, 100) <= $chance){
+                $level = $pos->getLevel();
+                $block = $level->getBlock($pos);
+                if($block->getID() === $from->getID() and (!$checkMeta or $block->getDamage() === $from->getDamage())){
+                    $level->setBlock($pos, $to, true, false);
+                    $cnt++;
                 }
             }
         }
-        return $result;
+        return $cnt;
     }
+    public function undoLast(){
+        foreach($this->undoMap as $block){
+            $block->getLevel()->setBlock($block, $block, true, false);
+        }
+    }
+    public abstract function isInside(Vector3 $v);
+    /**
+     * @param Vector3 $v0
+     * @param Vector3 $v1
+     * @return bool
+     */
+    protected final function equals(Vector3 $v0, Vector3 $v1){
+        $out = true;
+        $out = ($out and $v0->getX() === $v1->getX());
+        $out = ($out and $v0->getY() === $v1->getY());
+        $out = ($out and $v0->getZ() === $v1->getZ());
+        if($v0 instanceof Position and $v1 instanceof Position){
+            $out = ($out and $v0->getLevel()->getName() === $v1->getLevel()->getName());
+        }
+        return $out;
+    }
+    public abstract function __toString();
 }
