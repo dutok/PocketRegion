@@ -15,6 +15,8 @@ use pocketmine\level\Position;
 use Space;
 use pocketmine\plugin\PluginBase;
 use pocketmine\utils\TextFormat;
+use pocketmine\event\entity\EntityMoveEvent;
+use pocketmine\entity\Human;
 
 class PocketRegion extends PluginBase{
 
@@ -51,25 +53,20 @@ class PocketRegion extends PluginBase{
 
                     $current = $sender->getPosition();
                     $world = $current->getLevel()->getName();
-                    $firstx = (int) $current->getX();
-                    $firsty = (int) $current->getY();
-                    $firstz = (int) $current->getZ();
+                    $x = (int) $current->getX();
+                    $y = (int) $current->getY();
+                    $z = (int) $current->getZ();
 
                     $end = $current->add($sender->getDirectionVector()->multiply($distance));
-                    $secondx = $end->getX();
-                    $secondy = $end->getY();
-                    $secondz = $end->getZ();
 
-                    $prepare = $this->database->prepare("INSERT INTO regions (name, flags, world, firstx, firsty, firstz, secondx, secondy, secondz) VALUES (:name, :flags, :world, :firstx, :firsty, :firstz, :secondx, :secondy, :secondz)");
+                    $prepare = $this->database->prepare("INSERT INTO regions (name, flags, world, x, y, z) VALUES (:name, :flags, :world, :x, :y, :z)");
                     $prepare->bindValue(":name", $regionName, SQLITE3_TEXT);
                     $prepare->bindValue(":flags", $flags, SQLITE3_TEXT);
                     $prepare->bindValue(":world", $world, SQLITE3_TEXT);
-                    $prepare->bindValue(":firstx", $firstx, SQLITE3_INTEGER);
-                    $prepare->bindValue(":firsty", $firsty, SQLITE3_INTEGER);
-                    $prepare->bindValue(":firstz", $firstz, SQLITE3_INTEGER);
-                    $prepare->bindValue(":secondx", $secondx, SQLITE3_INTEGER);
-                    $prepare->bindValue(":secondy", $secondy, SQLITE3_INTEGER);
-                    $prepare->bindValue(":secondz", $secondz, SQLITE3_INTEGER);
+                    $prepare->bindValue(":distance", $distance, SQLITE3_INTEGER);
+                    $prepare->bindValue(":x", $x, SQLITE3_INTEGER);
+                    $prepare->bindValue(":y", $y, SQLITE3_INTEGER);
+                    $prepare->bindValue(":z", $z, SQLITE3_INTEGER);
                     $prepare->execute();
 
                     $sender->sendMessage("Region '".$regionName."' defined.");
